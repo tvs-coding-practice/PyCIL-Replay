@@ -1,6 +1,11 @@
+import logging
+import os
+from collections import Counter
+
 import numpy as np
 from torchvision import datasets, transforms
 from utils.toolkit import split_images_labels
+from sklearn.model_selection import train_test_split
 
 
 class iData(object):
@@ -8,6 +13,100 @@ class iData(object):
     test_trsf = []
     common_trsf = []
     class_order = None
+
+
+class iCXRDisesases10(iData):
+    use_path = True  # Images are stored in paths
+
+    train_trsf = [
+        transforms.Grayscale(num_output_channels=3),
+        transforms.Resize((32, 32)),
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=63 / 255),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    ]
+
+    test_trsf = [
+        transforms.Grayscale(num_output_channels=3),
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    ]
+
+    common_trsf = [
+        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    ]
+
+    def download_data(self):
+        folder_path = "/content/drive/MyDrive/nih-chest-xrays-filtered"
+        logging.info("Starting to load COVID dataset from folder structure...")
+
+        class_order = [
+            "Covid19-CovidX", "Healthy-CovidX", "Pneumonia-CovidX",
+            "Effusion", "Pneumothorax", "Cardiomegaly",
+            "Atelectasis", "Consolidation", "Nodule", "Infiltration"
+        ]
+        label_map = {class_name: idx for idx, class_name in enumerate(class_order)}
+        logging.info(f"Label Map: {label_map}")
+
+        image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp"}
+
+        image_paths = []
+        labels = []
+
+        for class_name in class_order:
+            class_path = os.path.join(folder_path, class_name)
+            if not os.path.isdir(class_path):
+                logging.warning(f"Skipping missing class folder: {class_name}")
+                continue
+
+            class_images = [
+                os.path.join(class_path, img) for img in os.listdir(class_path)
+                if os.path.isfile(os.path.join(class_path, img))
+                   and os.path.splitext(img)[1].lower() in image_extensions
+            ]
+
+            logging.info(f"Loaded {len(class_images)} valid images for class {class_name}")
+
+            image_paths.extend(class_images)
+            labels.extend([label_map[class_name]] * len(class_images))
+
+        image_paths = np.array(image_paths)
+        labels = np.array(labels)
+
+        total_class_counts = Counter(labels)
+        for class_label, count in total_class_counts.items():
+            logging.info(f"Total images for class {class_label} ({class_order[class_label]}): {count}")
+
+        min_samples_per_class = min(total_class_counts.values())
+        test_size_per_class = max(1, int(min_samples_per_class * 0.2))
+
+        train_paths, test_paths, train_labels, test_labels = train_test_split(
+            image_paths, labels, test_size=test_size_per_class * len(class_order),
+            stratify=labels, random_state=42
+        )
+
+        train_counts = Counter(train_labels)
+        test_counts = Counter(test_labels)
+
+        for class_label in total_class_counts.keys():
+            train_count = train_counts.get(class_label, 0)
+            test_count = test_counts.get(class_label, 0)
+            logging.info(f"Train images for class {class_label} ({class_order[class_label]}): {train_count}")
+            logging.info(f"Test images for class {class_label} ({class_order[class_label]}): {test_count}")
+
+        # ✅ **Store train and test data separately (Old Format)**
+        self.train_data = train_paths  # File paths only
+        self.train_targets = train_labels  # Labels only
+        self.test_data = test_paths  # File paths only
+        self.test_targets = test_labels  # Labels only
+
+        logging.info(f"Total train images: {len(self.train_data)}")
+        logging.info(f"Total test images: {len(self.test_data)}")
+
+    class_order = list(range(10))  # Follow the defined order
 
 
 class iCIFAR10(iData):
