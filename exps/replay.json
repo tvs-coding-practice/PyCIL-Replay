@@ -9,6 +9,6 @@
     "increment": 1,
     "model_name": "replay",
     "convnet_type": "resnet32",
-    "device": ["0","1","2","3"],
+    "device": ["0","1"],
     "seed": [1993]
 }
