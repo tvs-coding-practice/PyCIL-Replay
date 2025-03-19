@@ -75,7 +75,7 @@ class BaseLearner(object):
         precision = precision_score(y_true, y_pred, average='weighted')
         recall = recall_score(y_true, y_pred, average='weighted')
         f1 = f1_score(y_true, y_pred, average='weighted')
-        auc = roc_auc_score(y_true, y_pred, average='weighted', multi_class='ovr')
+        # auc = roc_auc_score(y_true, y_pred, average='weighted', multi_class='ovr')
         cm = confusion_matrix(y_true, y_pred)
         sensitivity = cm[1, 1] / (cm[1, 1] + cm[1, 0])  # Sensitivity for class 1
         specificity = cm[0, 0] / (cm[0, 0] + cm[0, 1])  # Specificity for class 0
@@ -83,7 +83,7 @@ class BaseLearner(object):
             "precision": precision,
             "recall": recall,
             "f1_score": f1,
-            "auc": auc,
+            # "auc": auc,
             "sensitivity": sensitivity,
             "specificity": specificity
         }
