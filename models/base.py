@@ -106,6 +106,24 @@ class BaseLearner(object):
     def _backward_transfer(self, accuracy_old, accuracy_new):
         return accuracy_old - accuracy_new
 
+    # def _evaluate(self, y_pred, y_true):
+    #     ret = {}
+    #     grouped = accuracy(y_pred.T[0], y_true, self._known_classes)
+    #     ret["grouped"] = grouped
+    #     ret["top1"] = grouped["total"]
+    #     ret["top{}".format(self.topk)] = np.around(
+    #         (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+    #         decimals=2,
+    #     )
+
+    #     # New Metrics
+    #     class_metrics = self._evaluate_classification_metrics(y_pred, y_true)
+    #     ret.update(class_metrics)
+    #     class_accuracies = self._class_wise_accuracy(y_pred, y_true)
+    #     ret["class_wise_accuracy"] = class_accuracies
+
+    #     return ret
+
     def _evaluate(self, y_pred, y_true):
         ret = {}
         grouped = accuracy(y_pred.T[0], y_true, self._known_classes)
@@ -115,15 +133,35 @@ class BaseLearner(object):
             (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
             decimals=2,
         )
-
+    
         # New Metrics
         class_metrics = self._evaluate_classification_metrics(y_pred, y_true)
-        ret.update(class_metrics)
         class_accuracies = self._class_wise_accuracy(y_pred, y_true)
+    
+        # Example old and new accuracies for calculating forgetting, FT, and BT
+        accuracy_old = 80.0
+        accuracy_new = class_metrics["recall"] * 100  # Example
+    
+        forgetting_score = self._forgetting_score(accuracy_old, accuracy_new)
+        forward_transfer = self._forward_transfer(accuracy_new, accuracy_old)
+        backward_transfer = self._backward_transfer(accuracy_old, accuracy_new)
+    
+        ret.update(class_metrics)
         ret["class_wise_accuracy"] = class_accuracies
-
+        ret["forgetting_score"] = forgetting_score
+        ret["forward_transfer"] = forward_transfer
+        ret["backward_transfer"] = backward_transfer
+    
+        # Log all results
+        logging.info(f"Top-1 Accuracy: {ret['top1']}")
+        logging.info(f"Precision: {class_metrics['precision']:.4f}, Recall: {class_metrics['recall']:.4f}, F1: {class_metrics['f1_score']:.4f}")
+        logging.info(f"Sensitivity: {class_metrics['sensitivity']:.4f}, Specificity: {class_metrics['specificity']:.4f}")
+        logging.info(f"Forgetting Score: {forgetting_score:.4f}, FT: {forward_transfer:.4f}, BT: {backward_transfer:.4f}")
+        logging.info(f"Class-wise Accuracy: {class_accuracies}")
+    
         return ret
 
+    
     def eval_task(self, save_conf=False):
         y_pred, y_true = self._eval_cnn(self.test_loader)
         cnn_accy = self._evaluate(y_pred, y_true)
