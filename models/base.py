@@ -164,10 +164,12 @@ class BaseLearner(object):
     
     def eval_task(self, save_conf=False):
         y_pred, y_true = self._eval_cnn(self.test_loader)
+        logging.info("CNN Metrics")
         cnn_accy = self._evaluate(y_pred, y_true)
 
         if hasattr(self, "_class_means"):
             y_pred, y_true = self._eval_nme(self.test_loader, self._class_means)
+            logging.info("NME Metrics")
             nme_accy = self._evaluate(y_pred, y_true)
         else:
             nme_accy = None
