@@ -78,25 +78,43 @@ class Replay(BaseLearner):
     def _train(self, train_loader, test_loader):
         self._network.to(self._device)
         if self._cur_task == 0:
-            optimizer = optim.SGD(
+            # optimizer = optim.SGD(
+            #     self._network.parameters(),
+            #     momentum=0.9,
+            #     lr=init_lr,
+            #     weight_decay=init_weight_decay,
+            # )
+            # scheduler = optim.lr_scheduler.MultiStepLR(
+            #     optimizer=optimizer, milestones=init_milestones, gamma=init_lr_decay
+            # )
+            optimizer = optim.AdamW(
                 self._network.parameters(),
-                momentum=0.9,
-                lr=init_lr,
-                weight_decay=init_weight_decay,
+                lr=3e-4,  # Start with a lower learning rate for stability
+                betas=(0.9, 0.999),  # Default values for AdamW
+                weight_decay=1e-4  # Lower weight decay for better generalization
             )
-            scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer=optimizer, milestones=init_milestones, gamma=init_lr_decay
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=epochs, eta_min=1e-6
             )
             self._init_train(train_loader, test_loader, optimizer, scheduler)
         else:
-            optimizer = optim.SGD(
+            # optimizer = optim.SGD(
+            #     self._network.parameters(),
+            #     lr=lrate,
+            #     momentum=0.9,
+            #     weight_decay=weight_decay,
+            # )  # 1e-5
+            # scheduler = optim.lr_scheduler.MultiStepLR(
+            #     optimizer=optimizer, milestones=milestones, gamma=lrate_decay
+            # )
+            optimizer = optim.AdamW(
                 self._network.parameters(),
-                lr=lrate,
-                momentum=0.9,
-                weight_decay=weight_decay,
-            )  # 1e-5
-            scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer=optimizer, milestones=milestones, gamma=lrate_decay
+                lr=3e-4,  # Start with a lower learning rate for stability
+                betas=(0.9, 0.999),  # Default values for AdamW
+                weight_decay=1e-4  # Lower weight decay for better generalization
+            )
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=epochs, eta_min=1e-6
             )
             self._update_representation(train_loader, test_loader, optimizer, scheduler)
 
