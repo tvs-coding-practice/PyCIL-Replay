@@ -18,27 +18,46 @@ class iData(object):
 class iCXRDisesases10(iData):
     use_path = True  # Images are stored in paths
 
+    # train_trsf = [
+    #     transforms.Grayscale(num_output_channels=3),
+    #     transforms.Resize((32, 32)),
+    #     transforms.RandomCrop(32, padding=4),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ColorJitter(brightness=63 / 255),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    # ]
+
+    # test_trsf = [
+    #     transforms.Grayscale(num_output_channels=3),
+    #     transforms.Resize((32, 32)),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    # ]
+
+    # common_trsf = [
+    #     transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+    # ]
+
     train_trsf = [
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((32, 32)),
-        transforms.RandomCrop(32, padding=4),
+        transforms.Resize((128, 128)),  # Larger size
+        transforms.RandomCrop(128, padding=4),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=63 / 255),
+        transforms.RandomRotation(10),  # Slight rotation for variability
+        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # Small translations
+        transforms.RandomResizedCrop(128, scale=(0.8, 1.0)),  # Crop with scaling
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761))
     ]
-
     test_trsf = [
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((32, 32)),
+        transforms.Resize((128, 128)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
+        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761))
     ]
-
-    common_trsf = [
-        transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
-    ]
-
+    common_trsf = []
+    
     def download_data(self):
         folder_path = "/content/drive/MyDrive/nih-chest-xrays-filtered"
         logging.info("Starting to load COVID dataset from folder structure...")
