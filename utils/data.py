@@ -39,20 +39,21 @@ class iCXRDisesases10(iData):
     #     transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
     # ]
 
+    image_dim = 32
     train_trsf = [
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((128, 128)),  # Larger size
-        transforms.RandomCrop(128, padding=4),
+        transforms.Resize((image_dim, image_dim)),  # Larger size
+        transforms.RandomCrop(image_dim, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),  # Slight rotation for variability
         transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # Small translations
-        transforms.RandomResizedCrop(128, scale=(0.8, 1.0)),  # Crop with scaling
+        transforms.RandomResizedCrop(image_dim, scale=(0.8, 1.0)),  # Crop with scaling
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761))
     ]
     test_trsf = [
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize((128, 128)),
+        transforms.Resize((image_dim, image_dim)),
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761))
     ]
