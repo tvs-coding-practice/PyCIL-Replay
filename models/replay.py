@@ -13,14 +13,14 @@ from utils.toolkit import target2onehot, tensor2numpy
 EPSILON = 1e-8
 
 
-init_epoch = 15
+init_epoch = 50
 init_lr = 0.1
 init_milestones = [60, 120, 170]
 init_lr_decay = 0.1
 init_weight_decay = 0.0005
 
 
-epochs = 15
+epochs = 50
 lrate = 0.1
 milestones = [30, 50]
 lrate_decay = 0.1
@@ -89,9 +89,9 @@ class Replay(BaseLearner):
             # )
             optimizer = optim.AdamW(
                 self._network.parameters(),
-                lr=3e-4,  # Start with a lower learning rate for stability
+                lr=1e-4,  # Start with a lower learning rate for stability
                 betas=(0.9, 0.999),  # Default values for AdamW
-                weight_decay=1e-4  # Lower weight decay for better generalization
+                weight_decay=5e-5  # Lower weight decay for better generalization
             )
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=epochs, eta_min=1e-6
@@ -109,9 +109,9 @@ class Replay(BaseLearner):
             # )
             optimizer = optim.AdamW(
                 self._network.parameters(),
-                lr=3e-4,  # Start with a lower learning rate for stability
+                lr=1e-4,  # Start with a lower learning rate for stability
                 betas=(0.9, 0.999),  # Default values for AdamW
-                weight_decay=1e-4  # Lower weight decay for better generalization
+                weight_decay=5e-5  # Lower weight decay for better generalization
             )
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=epochs, eta_min=1e-6
