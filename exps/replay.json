@@ -2,7 +2,7 @@
     "prefix": "reproduce",
     "dataset": "CXRDiseases10",
     "memory_size": 2000,
-    "memory_per_class": 50,
+    "memory_per_class": 100,
     "fixed_memory": true,
     "shuffle": false,
     "init_cls": 2,
