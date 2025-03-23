@@ -7,6 +7,9 @@ from torch.utils.data import DataLoader
 from utils.toolkit import tensor2numpy, accuracy
 from scipy.spatial.distance import cdist
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
+from sklearn.cluster import KMeans
+from torch.utils.data import DataLoader
+
 import os
 
 EPSILON = 1e-8
@@ -364,6 +367,7 @@ class BaseLearner(object):
 
             self._class_means[class_idx, :] = mean
 
+    # Herding Strategy
     def _construct_exemplar_unified(self, data_manager, m):
         logging.info(
             "Constructing exemplars for new classes...({} per classes)".format(m)
@@ -458,7 +462,95 @@ class BaseLearner(object):
             vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
             mean = np.mean(vectors, axis=0)
             mean = mean / np.linalg.norm(mean)
-
             _class_means[class_idx, :] = mean
-
         self._class_means = _class_means
+
+    # K-Center strategy
+    def _construct_exemplar_kcenter(self, data_manager, m):
+        logging.info(f"Constructing exemplars using K-Center clustering... ({m} per class)")
+    
+        _class_means = np.zeros((self._total_classes, self.feature_dim))
+    
+        # Calculate the means of old classes with newly trained network
+        for class_idx in range(self._known_classes):
+            mask = np.where(self._targets_memory == class_idx)[0]
+            class_data, class_targets = (
+                self._data_memory[mask],
+                self._targets_memory[mask],
+            )
+    
+            class_dset = data_manager.get_dataset(
+                [], source="train", mode="test", appendent=(class_data, class_targets)
+            )
+            class_loader = DataLoader(
+                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+    
+            vectors, _ = self._extract_vectors(class_loader)  # Extract feature vectors
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+            mean = np.mean(vectors, axis=0)
+            mean = mean / np.linalg.norm(mean)
+    
+            _class_means[class_idx, :] = mean
+    
+        # Construct exemplars using K-Center selection for new classes
+        for class_idx in range(self._known_classes, self._total_classes):
+            data, targets, class_dset = data_manager.get_dataset(
+                np.arange(class_idx, class_idx + 1),
+                source="train",
+                mode="test",
+                ret_data=True,
+            )
+            class_loader = DataLoader(
+                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+    
+            vectors, _ = self._extract_vectors(class_loader)  # Extract feature vectors
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    
+            # Step 1: Apply KMeans clustering to find m cluster centers
+            kmeans = KMeans(n_clusters=m, random_state=0).fit(vectors)
+            cluster_centers = kmeans.cluster_centers_
+    
+            # Step 2: Select closest samples to each cluster center
+            selected_exemplars = []
+            selected_indices = []
+            for center in cluster_centers:
+                i = np.argmin(np.linalg.norm(vectors - center, axis=1))  # Find closest point
+                selected_exemplars.append(np.array(data[i]))  # Store selected sample
+                selected_indices.append(i)
+    
+            selected_exemplars = np.array(selected_exemplars)
+            exemplar_targets = np.full(m, class_idx)
+    
+            # Update memory with selected exemplars
+            self._data_memory = (
+                np.concatenate((self._data_memory, selected_exemplars))
+                if len(self._data_memory) != 0
+                else selected_exemplars
+            )
+            self._targets_memory = (
+                np.concatenate((self._targets_memory, exemplar_targets))
+                if len(self._targets_memory) != 0
+                else exemplar_targets
+            )
+    
+            # Compute new exemplar mean
+            exemplar_dset = data_manager.get_dataset(
+                [],
+                source="train",
+                mode="test",
+                appendent=(selected_exemplars, exemplar_targets),
+            )
+            exemplar_loader = DataLoader(
+                exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+            vectors, _ = self._extract_vectors(exemplar_loader)
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+            mean = np.mean(vectors, axis=0)
+            mean = mean / np.linalg.norm(mean)
+    
+            _class_means[class_idx, :] = mean
+    
+        self._class_means = _class_means
+
