@@ -9,6 +9,7 @@ from scipy.spatial.distance import cdist
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
+import scipy.stats
 
 import os
 
@@ -57,7 +58,8 @@ class BaseLearner(object):
 
     def build_rehearsal_memory(self, data_manager, per_class):
         if self._fixed_memory:
-            self._construct_exemplar_coreset(data_manager, per_class)
+            self._construct_exemplar_entropy(data_manager, per_class)
+            # self._construct_exemplar_coreset(data_manager, per_class)
             # self._construct_exemplar_kcenter(data_manager, per_class)
             # self._construct_exemplar_unified(data_manager, per_class)
         else:
@@ -649,3 +651,89 @@ class BaseLearner(object):
             _class_means[class_idx, :] = mean
     
         self._class_means = _class_means
+
+    # Entropy-based selection
+    def _construct_exemplar_entropy(self, data_manager, m):
+        logging.info(f"Constructing exemplars using Entropy-based Selection... ({m} per class)")
+    
+        _class_means = np.zeros((self._total_classes, self.feature_dim))
+    
+        # Compute feature representations for old classes
+        for class_idx in range(self._known_classes):
+            mask = np.where(self._targets_memory == class_idx)[0]
+            class_data, class_targets = (
+                self._data_memory[mask],
+                self._targets_memory[mask],
+            )
+    
+            class_dset = data_manager.get_dataset(
+                [], source="train", mode="test", appendent=(class_data, class_targets)
+            )
+            class_loader = DataLoader(
+                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+            vectors, _ = self._extract_vectors(class_loader)
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+            mean = np.mean(vectors, axis=0)
+            mean = mean / np.linalg.norm(mean)
+    
+            _class_means[class_idx, :] = mean
+    
+        # Compute feature representations for new classes
+        for class_idx in range(self._known_classes, self._total_classes):
+            data, targets, class_dset = data_manager.get_dataset(
+                np.arange(class_idx, class_idx + 1),
+                source="train",
+                mode="test",
+                ret_data=True,
+            )
+            class_loader = DataLoader(
+                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+    
+            vectors, _ = self._extract_vectors(class_loader)
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    
+            # Step 1: Compute entropy for each sample
+            with torch.no_grad():
+                probs = self._network(torch.tensor(vectors).float().to(self._device))  # Forward pass
+                probs = torch.nn.functional.softmax(probs, dim=1)  # Convert logits to probabilities
+                entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=1)  # Shannon entropy
+    
+            # Step 2: Select top-m high entropy samples
+            selected_indices = torch.argsort(entropy, descending=True)[:m]  # Top-m highest entropy
+            selected_exemplars = data[selected_indices.cpu().numpy()]
+    
+            exemplar_targets = np.full(m, class_idx)
+    
+            # Store exemplars in memory
+            self._data_memory = (
+                np.concatenate((self._data_memory, selected_exemplars))
+                if len(self._data_memory) != 0
+                else selected_exemplars
+            )
+            self._targets_memory = (
+                np.concatenate((self._targets_memory, exemplar_targets))
+                if len(self._targets_memory) != 0
+                else exemplar_targets
+            )
+    
+            # Compute new class mean
+            exemplar_dset = data_manager.get_dataset(
+                [],
+                source="train",
+                mode="test",
+                appendent=(selected_exemplars, exemplar_targets),
+            )
+            exemplar_loader = DataLoader(
+                exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+            vectors, _ = self._extract_vectors(exemplar_loader)
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+            mean = np.mean(vectors, axis=0)
+            mean = mean / np.linalg.norm(mean)
+    
+            _class_means[class_idx, :] = mean
+    
+        self._class_means = _class_means
+    
