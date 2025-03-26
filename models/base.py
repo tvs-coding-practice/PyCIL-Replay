@@ -653,6 +653,91 @@ class BaseLearner(object):
         self._class_means = _class_means
 
     # Entropy-based selection
+    # def _construct_exemplar_entropy(self, data_manager, m):
+    #     logging.info(f"Constructing exemplars using Entropy-based Selection... ({m} per class)")
+    
+    #     _class_means = np.zeros((self._total_classes, self.feature_dim))
+    
+    #     # Compute feature representations for old classes
+    #     for class_idx in range(self._known_classes):
+    #         mask = np.where(self._targets_memory == class_idx)[0]
+    #         class_data, class_targets = (
+    #             self._data_memory[mask],
+    #             self._targets_memory[mask],
+    #         )
+    
+    #         class_dset = data_manager.get_dataset(
+    #             [], source="train", mode="test", appendent=(class_data, class_targets)
+    #         )
+    #         class_loader = DataLoader(
+    #             class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+    #         )
+    #         vectors, _ = self._extract_vectors(class_loader)
+    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    #         mean = np.mean(vectors, axis=0)
+    #         mean = mean / np.linalg.norm(mean)
+    
+    #         _class_means[class_idx, :] = mean
+    
+    #     # Compute feature representations for new classes
+    #     for class_idx in range(self._known_classes, self._total_classes):
+    #         data, targets, class_dset = data_manager.get_dataset(
+    #             np.arange(class_idx, class_idx + 1),
+    #             source="train",
+    #             mode="test",
+    #             ret_data=True,
+    #         )
+    #         class_loader = DataLoader(
+    #             class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+    #         )
+    
+    #         vectors, _ = self._extract_vectors(class_loader)
+    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    
+    #         # Step 1: Compute entropy for each sample
+    #         with torch.no_grad():
+    #             probs = self._network(torch.tensor(vectors).float().to(self._device))  # Forward pass
+    #             probs = torch.nn.functional.softmax(probs, dim=1)  # Convert logits to probabilities
+    #             entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=1)  # Shannon entropy
+    
+    #         # Step 2: Select top-m high entropy samples
+    #         selected_indices = torch.argsort(entropy, descending=True)[:m]  # Top-m highest entropy
+    #         selected_exemplars = data[selected_indices.cpu().numpy()]
+    
+    #         exemplar_targets = np.full(m, class_idx)
+    
+    #         # Store exemplars in memory
+    #         self._data_memory = (
+    #             np.concatenate((self._data_memory, selected_exemplars))
+    #             if len(self._data_memory) != 0
+    #             else selected_exemplars
+    #         )
+    #         self._targets_memory = (
+    #             np.concatenate((self._targets_memory, exemplar_targets))
+    #             if len(self._targets_memory) != 0
+    #             else exemplar_targets
+    #         )
+    
+    #         # Compute new class mean
+    #         exemplar_dset = data_manager.get_dataset(
+    #             [],
+    #             source="train",
+    #             mode="test",
+    #             appendent=(selected_exemplars, exemplar_targets),
+    #         )
+    #         exemplar_loader = DataLoader(
+    #             exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
+    #         )
+    #         vectors, _ = self._extract_vectors(exemplar_loader)
+    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    #         mean = np.mean(vectors, axis=0)
+    #         mean = mean / np.linalg.norm(mean)
+    
+    #         _class_means[class_idx, :] = mean
+    
+    #     self._class_means = _class_means
+    
+
     def _construct_exemplar_entropy(self, data_manager, m):
         logging.info(f"Constructing exemplars using Entropy-based Selection... ({m} per class)")
     
@@ -669,14 +754,13 @@ class BaseLearner(object):
             class_dset = data_manager.get_dataset(
                 [], source="train", mode="test", appendent=(class_data, class_targets)
             )
-            class_loader = DataLoader(
-                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
-            vectors, _ = self._extract_vectors(class_loader)
+            class_loader = DataLoader(class_dset, batch_size=batch_size, shuffle=False, num_workers=2)
+            vectors, _ = self._extract_vectors(class_loader)  # Extract feature vectors
+    
+            # Normalize feature vectors
             vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
             mean = np.mean(vectors, axis=0)
             mean = mean / np.linalg.norm(mean)
-    
             _class_means[class_idx, :] = mean
     
         # Compute feature representations for new classes
@@ -687,23 +771,28 @@ class BaseLearner(object):
                 mode="test",
                 ret_data=True,
             )
-            class_loader = DataLoader(
-                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
+            class_loader = DataLoader(class_dset, batch_size=batch_size, shuffle=False, num_workers=2)
     
-            vectors, _ = self._extract_vectors(class_loader)
+            vectors, _ = self._extract_vectors(class_loader)  # Extract feature vectors
             vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+    
+            # Ensure we have a classifier for entropy computation
+            if not hasattr(self, 'classifier'):
+                self.classifier = nn.Sequential(
+                    nn.Linear(self.feature_dim, 256),  # Feature input → Hidden layer
+                    nn.ReLU(),
+                    nn.Linear(256, self._total_classes)  # Hidden → Output (num_classes)
+                ).to(self._device)
     
             # Step 1: Compute entropy for each sample
             with torch.no_grad():
-                probs = self._network(torch.tensor(vectors).float().to(self._device))  # Forward pass
-                probs = torch.nn.functional.softmax(probs, dim=1)  # Convert logits to probabilities
+                feature_tensors = torch.tensor(vectors).float().to(self._device)  # Convert to tensor
+                probs = F.softmax(self.classifier(feature_tensors), dim=1)  # Compute softmax probabilities
                 entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=1)  # Shannon entropy
     
             # Step 2: Select top-m high entropy samples
             selected_indices = torch.argsort(entropy, descending=True)[:m]  # Top-m highest entropy
             selected_exemplars = data[selected_indices.cpu().numpy()]
-    
             exemplar_targets = np.full(m, class_idx)
     
             # Store exemplars in memory
@@ -725,15 +814,11 @@ class BaseLearner(object):
                 mode="test",
                 appendent=(selected_exemplars, exemplar_targets),
             )
-            exemplar_loader = DataLoader(
-                exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
+            exemplar_loader = DataLoader(exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2)
             vectors, _ = self._extract_vectors(exemplar_loader)
             vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
             mean = np.mean(vectors, axis=0)
             mean = mean / np.linalg.norm(mean)
-    
             _class_means[class_idx, :] = mean
     
         self._class_means = _class_means
-    
