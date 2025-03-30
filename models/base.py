@@ -743,16 +743,11 @@ class BaseLearner(object):
 
     # gradient-selection strategy
     def _construct_exemplar_gradient(self, data_manager, m):
-        """
-        Gradient-Based Selection Strategy for Exemplar Construction.
-        Args:
-            data_manager: Object managing data access.
-            m: Number of exemplars per class.
-        """
-        logging.info("Constructing exemplars using Gradient-Based Selection...({} per class)".format(m))
+        logging.info(f"Constructing exemplars using Gradient-based Selection... ({m} per class)")
+    
         _class_means = np.zeros((self._total_classes, self.feature_dim))
     
-        # Construct exemplars for new classes and calculate the means
+        # Iterate through new classes to build exemplars
         for class_idx in range(self._known_classes, self._total_classes):
             data, targets, class_dset = data_manager.get_dataset(
                 np.arange(class_idx, class_idx + 1),
@@ -760,42 +755,46 @@ class BaseLearner(object):
                 mode="test",
                 ret_data=True,
             )
-            class_loader = DataLoader(
-                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
+            class_loader = DataLoader(class_dset, batch_size=1, shuffle=False, num_workers=2)  # Batch size 1 for gradient calculation
     
             gradient_norms = []
-            all_vectors = []
-            
-            self._network.eval()
-            for inputs, labels in class_loader:
-                inputs, labels = inputs.to(self._device), labels.to(self._device)
-                self._network.zero_grad()
+            sample_vectors = []
     
+            self._network.eval()
+            for inputs, _ in class_loader:
+                inputs = inputs.to(self._device)
+                inputs.requires_grad = True  # Enable gradient calculation
+    
+                # Forward pass
                 outputs = self._network(inputs)
-                loss = torch.nn.functional.cross_entropy(outputs, labels)
+                loss = F.cross_entropy(outputs, torch.tensor([class_idx], device=self._device))
+    
+                # Backward pass to compute gradients
+                self._network.zero_grad()
                 loss.backward()
     
-                # Flatten and concatenate all gradients
-                grad_norm = 0.0
+                # Aggregate gradients from all parameters
+                total_norm = 0.0
                 for param in self._network.parameters():
                     if param.grad is not None:
-                        grad_norm += torch.norm(param.grad).item()
-                gradient_norms.append(grad_norm)
+                        total_norm += torch.norm(param.grad, p=2).item() ** 2
+                total_norm = total_norm ** 0.5  # L2 norm of gradients
     
-                # Extract vectors and add to list
-                vectors = tensor2numpy(self._network.extract_vector(inputs))
-                all_vectors.append(vectors)
+                gradient_norms.append(total_norm)
+    
+                # Extract feature vectors for mean computation later
+                with torch.no_grad():
+                    vector = self._network.extract_vector(inputs).cpu().numpy()
+                    sample_vectors.append(vector)
     
             gradient_norms = np.array(gradient_norms)
-            all_vectors = np.concatenate(all_vectors, axis=0)
     
-            # Select top-m exemplars with the highest gradient norms
-            top_indices = np.argsort(-gradient_norms)[:m]  # Negative sign for descending order
-            selected_exemplars = np.array([data[i] for i in top_indices])
+            # Select top-m samples with the highest gradient norms
+            selected_indices = np.argsort(gradient_norms)[-m:]  # Top-m gradients
+            selected_exemplars = data[selected_indices]
             exemplar_targets = np.full(m, class_idx)
     
-            # Update memory
+            # Store selected exemplars in memory
             self._data_memory = (
                 np.concatenate((self._data_memory, selected_exemplars))
                 if len(self._data_memory) != 0
@@ -807,22 +806,12 @@ class BaseLearner(object):
                 else exemplar_targets
             )
     
-            # Calculate mean of exemplars
-            exemplar_dset = data_manager.get_dataset(
-                [],
-                source="train",
-                mode="test",
-                appendent=(selected_exemplars, exemplar_targets),
-            )
-            exemplar_loader = DataLoader(
-                exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
-            vectors, _ = self._extract_vectors(exemplar_loader)
-            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
-            mean = np.mean(vectors, axis=0)
+            # Compute the mean of selected exemplars for class mean calculation
+            selected_vectors = np.array([sample_vectors[i] for i in selected_indices])
+            selected_vectors = (selected_vectors.T / (np.linalg.norm(selected_vectors.T, axis=0) + 1e-10)).T
+            mean = np.mean(selected_vectors, axis=0)
             mean = mean / np.linalg.norm(mean)
-    
             _class_means[class_idx, :] = mean
     
         self._class_means = _class_means
-        logging.info("Gradient-based exemplar construction completed.")
+
