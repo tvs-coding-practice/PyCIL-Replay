@@ -653,91 +653,6 @@ class BaseLearner(object):
     
         self._class_means = _class_means
 
-    # Entropy-based selection
-    # def _construct_exemplar_entropy(self, data_manager, m):
-    #     logging.info(f"Constructing exemplars using Entropy-based Selection... ({m} per class)")
-    
-    #     _class_means = np.zeros((self._total_classes, self.feature_dim))
-    
-    #     # Compute feature representations for old classes
-    #     for class_idx in range(self._known_classes):
-    #         mask = np.where(self._targets_memory == class_idx)[0]
-    #         class_data, class_targets = (
-    #             self._data_memory[mask],
-    #             self._targets_memory[mask],
-    #         )
-    
-    #         class_dset = data_manager.get_dataset(
-    #             [], source="train", mode="test", appendent=(class_data, class_targets)
-    #         )
-    #         class_loader = DataLoader(
-    #             class_dset, batch_size=batch_size, shuffle=False, num_workers=2
-    #         )
-    #         vectors, _ = self._extract_vectors(class_loader)
-    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
-    #         mean = np.mean(vectors, axis=0)
-    #         mean = mean / np.linalg.norm(mean)
-    
-    #         _class_means[class_idx, :] = mean
-    
-    #     # Compute feature representations for new classes
-    #     for class_idx in range(self._known_classes, self._total_classes):
-    #         data, targets, class_dset = data_manager.get_dataset(
-    #             np.arange(class_idx, class_idx + 1),
-    #             source="train",
-    #             mode="test",
-    #             ret_data=True,
-    #         )
-    #         class_loader = DataLoader(
-    #             class_dset, batch_size=batch_size, shuffle=False, num_workers=2
-    #         )
-    
-    #         vectors, _ = self._extract_vectors(class_loader)
-    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
-    
-    #         # Step 1: Compute entropy for each sample
-    #         with torch.no_grad():
-    #             probs = self._network(torch.tensor(vectors).float().to(self._device))  # Forward pass
-    #             probs = torch.nn.functional.softmax(probs, dim=1)  # Convert logits to probabilities
-    #             entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=1)  # Shannon entropy
-    
-    #         # Step 2: Select top-m high entropy samples
-    #         selected_indices = torch.argsort(entropy, descending=True)[:m]  # Top-m highest entropy
-    #         selected_exemplars = data[selected_indices.cpu().numpy()]
-    
-    #         exemplar_targets = np.full(m, class_idx)
-    
-    #         # Store exemplars in memory
-    #         self._data_memory = (
-    #             np.concatenate((self._data_memory, selected_exemplars))
-    #             if len(self._data_memory) != 0
-    #             else selected_exemplars
-    #         )
-    #         self._targets_memory = (
-    #             np.concatenate((self._targets_memory, exemplar_targets))
-    #             if len(self._targets_memory) != 0
-    #             else exemplar_targets
-    #         )
-    
-    #         # Compute new class mean
-    #         exemplar_dset = data_manager.get_dataset(
-    #             [],
-    #             source="train",
-    #             mode="test",
-    #             appendent=(selected_exemplars, exemplar_targets),
-    #         )
-    #         exemplar_loader = DataLoader(
-    #             exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
-    #         )
-    #         vectors, _ = self._extract_vectors(exemplar_loader)
-    #         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
-    #         mean = np.mean(vectors, axis=0)
-    #         mean = mean / np.linalg.norm(mean)
-    
-    #         _class_means[class_idx, :] = mean
-    
-    #     self._class_means = _class_means
-    
 
     def _construct_exemplar_entropy(self, data_manager, m):
         logging.info(f"Constructing exemplars using Entropy-based Selection... ({m} per class)")
@@ -823,3 +738,90 @@ class BaseLearner(object):
             _class_means[class_idx, :] = mean
     
         self._class_means = _class_means
+
+
+    # gradient-selection strategy
+    def _construct_exemplar_gradient(self, data_manager, m):
+        """
+        Gradient-Based Selection Strategy for Exemplar Construction.
+        Args:
+            data_manager: Object managing data access.
+            m: Number of exemplars per class.
+        """
+        logging.info("Constructing exemplars using Gradient-Based Selection...({} per class)".format(m))
+        _class_means = np.zeros((self._total_classes, self.feature_dim))
+    
+        # Construct exemplars for new classes and calculate the means
+        for class_idx in range(self._known_classes, self._total_classes):
+            data, targets, class_dset = data_manager.get_dataset(
+                np.arange(class_idx, class_idx + 1),
+                source="train",
+                mode="test",
+                ret_data=True,
+            )
+            class_loader = DataLoader(
+                class_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+    
+            gradient_norms = []
+            all_vectors = []
+            
+            self._network.eval()
+            for inputs, labels in class_loader:
+                inputs, labels = inputs.to(self._device), labels.to(self._device)
+                self._network.zero_grad()
+    
+                outputs = self._network(inputs)
+                loss = torch.nn.functional.cross_entropy(outputs, labels)
+                loss.backward()
+    
+                # Flatten and concatenate all gradients
+                grad_norm = 0.0
+                for param in self._network.parameters():
+                    if param.grad is not None:
+                        grad_norm += torch.norm(param.grad).item()
+                gradient_norms.append(grad_norm)
+    
+                # Extract vectors and add to list
+                vectors = tensor2numpy(self._network.extract_vector(inputs))
+                all_vectors.append(vectors)
+    
+            gradient_norms = np.array(gradient_norms)
+            all_vectors = np.concatenate(all_vectors, axis=0)
+    
+            # Select top-m exemplars with the highest gradient norms
+            top_indices = np.argsort(-gradient_norms)[:m]  # Negative sign for descending order
+            selected_exemplars = np.array([data[i] for i in top_indices])
+            exemplar_targets = np.full(m, class_idx)
+    
+            # Update memory
+            self._data_memory = (
+                np.concatenate((self._data_memory, selected_exemplars))
+                if len(self._data_memory) != 0
+                else selected_exemplars
+            )
+            self._targets_memory = (
+                np.concatenate((self._targets_memory, exemplar_targets))
+                if len(self._targets_memory) != 0
+                else exemplar_targets
+            )
+    
+            # Calculate mean of exemplars
+            exemplar_dset = data_manager.get_dataset(
+                [],
+                source="train",
+                mode="test",
+                appendent=(selected_exemplars, exemplar_targets),
+            )
+            exemplar_loader = DataLoader(
+                exemplar_dset, batch_size=batch_size, shuffle=False, num_workers=2
+            )
+            vectors, _ = self._extract_vectors(exemplar_loader)
+            vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
+            mean = np.mean(vectors, axis=0)
+            mean = mean / np.linalg.norm(mean)
+    
+            _class_means[class_idx, :] = mean
+    
+        self._class_means = _class_means
+        logging.info("Gradient-based exemplar construction completed.")
