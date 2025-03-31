@@ -767,8 +767,11 @@ class BaseLearner(object):
     
                 # Forward pass
                 outputs = self._network(inputs)
+                # Assuming the logits are stored under the key "logits"
+                if isinstance(outputs, dict):
+                    outputs = outputs["logits"]
                 loss = F.cross_entropy(outputs, torch.tensor([class_idx], device=self._device))
-    
+
                 # Backward pass to compute gradients
                 self._network.zero_grad()
                 loss.backward()
