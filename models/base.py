@@ -761,7 +761,7 @@ class BaseLearner(object):
             sample_vectors = []
     
             self._network.eval()
-            for inputs, _ in class_loader:
+            for _, inputs, _ in class_loader:
                 inputs = inputs.to(self._device)
                 inputs.requires_grad = True  # Enable gradient calculation
     
