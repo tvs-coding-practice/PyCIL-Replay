@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from convs.cifar_resnet import resnet32
 from convs.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+from convs.mobilenet import ModifiedMobileNetV2
 from convs.ucir_cifar_resnet import resnet32 as cosine_resnet32
 from convs.ucir_resnet import resnet18 as cosine_resnet18
 from convs.ucir_resnet import resnet34 as cosine_resnet34
@@ -15,6 +16,7 @@ from convs.memo_resnet import  get_resnet18_imagenet as get_memo_resnet18 #for M
 from convs.memo_cifar_resnet import get_resnet32_a2fc as get_memo_resnet32 #for MEMO cifar
 from convs.ACL_buffer import RandomBuffer, activation_t
 from convs.linears import RecursiveLinear
+from convs.gabor_filter import GaborConv2d
 from typing import Dict, Any
 
 
@@ -44,6 +46,9 @@ def get_convnet(args, pretrained=False):
         return resnet34_cbam(pretrained=pretrained,args=args)
     elif name == "resnet50_cbam":
         return resnet50_cbam(pretrained=pretrained,args=args)
+    elif name == "mobilenetv2":
+        return ModifiedMobileNetV2(pretrained=pretrained,args=args)
+
     
     # MEMO benchmark backbone
     elif name == 'memo_resnet18':
@@ -52,9 +57,17 @@ def get_convnet(args, pretrained=False):
     elif name == 'memo_resnet32':
         _basenet, _adaptive_net = get_memo_resnet32()
         return _basenet, _adaptive_net
-    
+
+    # Gabor Filtered Models
+    elif name == 'gabor_mobilenetv2':
+      model = ModifiedMobileNetV2(pretrained=pretrained, args=args)
+      model.features[0][0] = GaborConv2d(3, 24, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      return model
+
+
     else:
         raise NotImplementedError("Unknown type {}".format(name))
+
 
 
 class BaseNet(nn.Module):
