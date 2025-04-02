@@ -61,7 +61,7 @@ def get_convnet(args, pretrained=False):
     # Gabor Filtered Models
     elif name == 'gabor_mobilenetv2':
       model = ModifiedMobileNetV2(pretrained=pretrained, args=args)
-      model.features[0][0] = GaborConv2d(3, 24, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+      model.features[0][0] = GaborConv2d(3, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
       return model
 
 
