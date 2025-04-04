@@ -8,7 +8,7 @@
     "init_cls": 2,
     "increment": 1,
     "model_name": "replay",
-    "convnet_type": "resnet32",
+    "convnet_type": "gabor_mobilenetv2",
     "device": ["0"],
     "seed": [1993]
 }
