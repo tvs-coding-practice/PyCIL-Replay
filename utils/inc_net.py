@@ -5,6 +5,7 @@ from torch import nn
 from convs.cifar_resnet import resnet32
 from convs.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 from convs.mobilenet import ModifiedMobileNetV2
+from convs.efficientnet import ModifiedEfficientNet
 from convs.ucir_cifar_resnet import resnet32 as cosine_resnet32
 from convs.ucir_resnet import resnet18 as cosine_resnet18
 from convs.ucir_resnet import resnet34 as cosine_resnet34
@@ -48,6 +49,8 @@ def get_convnet(args, pretrained=False):
         return resnet50_cbam(pretrained=pretrained,args=args)
     elif name == "mobilenetv2":
         return ModifiedMobileNetV2(pretrained=pretrained,args=args)
+    elif name == "efficientnet":
+        return ModifiedEfficientNet(pretrained=pretrained, args=args)
 
     
     # MEMO benchmark backbone
@@ -63,6 +66,14 @@ def get_convnet(args, pretrained=False):
       model = ModifiedMobileNetV2(pretrained=pretrained, args=args)
       model.features[0][0] = GaborConv2d(3, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
       return model
+    elif name == 'gabor_resnet18':
+        model = resnet18(pretrained=pretrained, args=args)
+        model.features[0][0] = GaborConv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        return model
+    elif name == 'gabor_efficientnet':
+        model = ModifiedEfficientNet(pretrained=pretrained, args=args)
+        model.features[0][0] = GaborConv2d(3, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        return model
 
 
     else:
