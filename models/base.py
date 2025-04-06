@@ -15,7 +15,7 @@ import scipy.stats
 import os
 
 EPSILON = 1e-8
-batch_size = 64
+batch_size = 32
 
 
 class BaseLearner(object):
@@ -59,11 +59,11 @@ class BaseLearner(object):
 
     def build_rehearsal_memory(self, data_manager, per_class):
         if self._fixed_memory:
-            self._construct_exemplar_gradient(data_manager, per_class)
+            # self._construct_exemplar_gradient(data_manager, per_class)
             # self._construct_exemplar_entropy(data_manager, per_class)
             # self._construct_exemplar_coreset(data_manager, per_class)
             # self._construct_exemplar_kcenter(data_manager, per_class)
-            # self._construct_exemplar_unified(data_manager, per_class)
+            self._construct_exemplar_unified(data_manager, per_class)
         else:
             self._reduce_exemplar(data_manager, per_class)
             self._construct_exemplar(data_manager, per_class)
@@ -86,6 +86,7 @@ class BaseLearner(object):
         f1 = f1_score(y_true, y_pred, average='weighted')
         # auc = roc_auc_score(y_true, y_pred, average='weighted', multi_class='ovr')
         cm = confusion_matrix(y_true, y_pred)
+        logging.info(f"Confusion Matrix: {cm}")
         sensitivity = cm[1, 1] / (cm[1, 1] + cm[1, 0])  # Sensitivity for class 1
         specificity = cm[0, 0] / (cm[0, 0] + cm[0, 1])  # Specificity for class 0
         return {
