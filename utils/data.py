@@ -39,7 +39,7 @@ class iCXRDisesases10(iData):
     #     transforms.Normalize(mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)),
     # ]
 
-    image_dim = 64
+    image_dim = 32
     train_trsf = [
         transforms.Grayscale(num_output_channels=3),
         transforms.Resize((image_dim, image_dim)),  # Larger size
