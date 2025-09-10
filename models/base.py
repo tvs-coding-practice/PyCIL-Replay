@@ -59,11 +59,12 @@ class BaseLearner(object):
 
     def build_rehearsal_memory(self, data_manager, per_class):
         if self._fixed_memory:
-            # self._construct_exemplar_gradient(data_manager, per_class)
             # self._construct_exemplar_entropy(data_manager, per_class)
             # self._construct_exemplar_coreset(data_manager, per_class)
             # self._construct_exemplar_kcenter(data_manager, per_class)
-            self._construct_exemplar_unified(data_manager, per_class)
+            # self._construct_exemplar_unified(data_manager, per_class)
+            self._construct_exemplar_random(data_manager, per_class)
+
         else:
             self._reduce_exemplar(data_manager, per_class)
             self._construct_exemplar(data_manager, per_class)
@@ -472,6 +473,46 @@ class BaseLearner(object):
             _class_means[class_idx, :] = mean
         self._class_means = _class_means
 
+
+    #random selection strategy
+    def _construct_exemplar_random(self, data_manager, m):
+        logging.info(
+            "Constructing exemplars for new classes...({} per classes)".format(m)
+        )
+
+        # For new classes, simply select random samples
+        for class_idx in range(self._known_classes, self._total_classes):
+            data, targets, _ = data_manager.get_dataset(
+                np.arange(class_idx, class_idx + 1),
+                source="train",
+                mode="test",
+                ret_data=True,
+            )
+
+            # Random Selection - Just pick m random samples
+            num_samples = len(data)
+            if num_samples <= m:
+                selected_indices = list(range(num_samples))
+            else:
+                np.random.seed(0)
+                selected_indices = np.random.choice(num_samples, size=m, replace=False)
+
+            selected_exemplars = np.array([data[i] for i in selected_indices])
+            exemplar_targets = np.full(len(selected_exemplars), class_idx)
+
+            # Store exemplars in memory
+            self._data_memory = (
+                np.concatenate((self._data_memory, selected_exemplars))
+                if len(self._data_memory) != 0
+                else selected_exemplars
+            )
+            self._targets_memory = (
+                np.concatenate((self._targets_memory, exemplar_targets))
+                if len(self._targets_memory) != 0
+                else exemplar_targets
+            )
+            
+    
     # K-Center strategy
     def _construct_exemplar_kcenter(self, data_manager, m):
         logging.info(f"Constructing exemplars using K-Center clustering... ({m} per class)")
@@ -740,82 +781,3 @@ class BaseLearner(object):
             _class_means[class_idx, :] = mean
     
         self._class_means = _class_means
-
-
-    # gradient-selection strategy
-    def _construct_exemplar_gradient(self, data_manager, m):
-        logging.info(f"Constructing exemplars using Gradient-based Selection... ({m} per class)")
-    
-        _class_means = np.zeros((self._total_classes, self.feature_dim))
-    
-        # Iterate through new classes to build exemplars
-        for class_idx in range(self._known_classes, self._total_classes):
-            data, targets, class_dset = data_manager.get_dataset(
-                np.arange(class_idx, class_idx + 1),
-                source="train",
-                mode="test",
-                ret_data=True,
-            )
-            class_loader = DataLoader(class_dset, batch_size=1, shuffle=False, num_workers=2)  # Batch size 1 for gradient calculation
-    
-            gradient_norms = []
-            sample_vectors = []
-    
-            self._network.eval()
-            for _, inputs, _ in class_loader:
-                inputs = inputs.to(self._device)
-                inputs.requires_grad = True  # Enable gradient calculation
-    
-                # Forward pass
-                outputs = self._network(inputs)
-                # Assuming the logits are stored under the key "logits"
-                if isinstance(outputs, dict):
-                    outputs = outputs["logits"]
-                loss = F.cross_entropy(outputs, torch.tensor([class_idx], device=self._device))
-
-                # Backward pass to compute gradients
-                self._network.zero_grad()
-                loss.backward()
-    
-                # Aggregate gradients from all parameters
-                total_norm = 0.0
-                for param in self._network.parameters():
-                    if param.grad is not None:
-                        total_norm += torch.norm(param.grad, p=2).item() ** 2
-                total_norm = total_norm ** 0.5  # L2 norm of gradients
-    
-                gradient_norms.append(total_norm)
-    
-                # Extract feature vectors for mean computation later
-                with torch.no_grad():
-                    vector = self._network.extract_vector(inputs).cpu().numpy()
-                    sample_vectors.append(vector)
-    
-            gradient_norms = np.array(gradient_norms)
-    
-            # Select top-m samples with the highest gradient norms
-            selected_indices = np.argsort(gradient_norms)[-m:]  # Top-m gradients
-            selected_exemplars = data[selected_indices]
-            exemplar_targets = np.full(m, class_idx)
-    
-            # Store selected exemplars in memory
-            self._data_memory = (
-                np.concatenate((self._data_memory, selected_exemplars))
-                if len(self._data_memory) != 0
-                else selected_exemplars
-            )
-            self._targets_memory = (
-                np.concatenate((self._targets_memory, exemplar_targets))
-                if len(self._targets_memory) != 0
-                else exemplar_targets
-            )
-    
-            # Compute the mean of selected exemplars for class mean calculation
-            selected_vectors = np.array([sample_vectors[i] for i in selected_indices])
-            selected_vectors = (selected_vectors.T / (np.linalg.norm(selected_vectors.T, axis=0) + 1e-10)).T
-            mean = np.mean(selected_vectors, axis=0)
-            mean = mean / np.linalg.norm(mean)
-            _class_means[class_idx, :] = mean
-    
-        self._class_means = _class_means
-
