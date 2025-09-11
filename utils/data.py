@@ -60,7 +60,8 @@ class iCXRDisesases10(iData):
     common_trsf = []
     
     def download_data(self):
-        folder_path = "/content/drive/MyDrive/nih-chest-xrays-filtered"
+        # folder_path = "/content/drive/MyDrive/nih-chest-xrays-filtered"
+        folder_path = "/kaggle/input/nih-chest-xrays-filtered/nih-chest-xrays-filtered"
         logging.info("Starting to load COVID dataset from folder structure...")
 
         class_order = [
