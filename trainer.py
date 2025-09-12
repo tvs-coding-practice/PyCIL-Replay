@@ -37,8 +37,8 @@ def _train(args):
         args["convnet_type"],
     )
     
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
+    # for handler in logging.root.handlers[:]:
+    #     logging.root.removeHandler(handler)
     
     logging.basicConfig(
         level=logging.INFO,
@@ -47,6 +47,7 @@ def _train(args):
             logging.FileHandler(filename=logfilename + ".log"),
             logging.StreamHandler(sys.stdout),
         ],
+        force=True
     )
 
     _set_random()
