@@ -36,6 +36,10 @@ def _train(args):
         args["seed"],
         args["convnet_type"],
     )
+    
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(filename)s] => %(message)s",
