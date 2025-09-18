@@ -494,7 +494,7 @@ class BaseLearner(object):
             if num_samples <= m:
                 selected_indices = list(range(num_samples))
             else:
-                np.random.seed(1987)
+                np.random.seed(215)
                 selected_indices = np.random.choice(num_samples, size=m, replace=False)
 
             selected_exemplars = np.array([data[i] for i in selected_indices])
