@@ -41,6 +41,9 @@ class iCaRL(BaseLearner):
         logging.info("Exemplar size: {}".format(self.exemplar_size))
 
     def incremental_train(self, data_manager):
+        # Enable automatic continual learning metrics
+        super().incremental_train(data_manager)
+        
         self._cur_task += 1
         self._total_classes = self._known_classes + data_manager.get_task_size(
             self._cur_task
