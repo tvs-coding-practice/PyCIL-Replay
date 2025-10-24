@@ -38,8 +38,10 @@ class Replay(BaseLearner):
     def after_task(self):
         self._known_classes = self._total_classes
         logging.info("Exemplar size: {}".format(self.exemplar_size))
+        super().after_task()  
 
     def incremental_train(self, data_manager):
+        super().incremental_train(data_manager) 
         self._cur_task += 1
         self._total_classes = self._known_classes + data_manager.get_task_size(
             self._cur_task
