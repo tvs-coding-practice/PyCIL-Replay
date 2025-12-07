@@ -686,8 +686,9 @@ class BaseLearner(object):
         # Store data_manager reference for automatic metrics computation
         self._data_manager = data_manager
 
-        # Compute baseline for current task (Task 0 only, others computed in after_task)
-        if self._cur_task == 0 and self._enable_continual_learning_metrics:
+        # Compute baseline for Task 0 (before any training)
+        # Note: _cur_task is still -1 at this point, will be incremented to 0 in subclass
+        if self._cur_task == -1 and self._enable_continual_learning_metrics:
             # For Task 0, we need to compute baseline before training
             # (subsequent tasks get baseline computed in previous task's after_task)
             if len(self._baseline_accuracies) == 0:
