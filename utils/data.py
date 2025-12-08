@@ -67,7 +67,8 @@ class iCXRDisesases10(iData):
         class_order = [
             "Covid19-CovidX", "Healthy-CovidX", "Pneumonia-CovidX",
             "Effusion", "Pneumothorax", "Cardiomegaly",
-            "Atelectasis", "Consolidation", "Nodule", "Infiltration"
+            "Atelectasis"
+            # , "Consolidation", "Nodule", "Infiltration"
         ]
         label_map = {class_name: idx for idx, class_name in enumerate(class_order)}
         logging.info(f"Label Map: {label_map}")
