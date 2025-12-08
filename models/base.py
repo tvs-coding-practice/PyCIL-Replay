@@ -513,6 +513,15 @@ class BaseLearner(object):
             logging.warning("DataManager not available. Skipping continual learning metrics.")
             return None
 
+        # Compute baseline for Task 0 if this is the first call (after Task 0)
+        if self._cur_task == 0 and len(self._baseline_accuracies) == 0:
+            # For Task 0, we use theoretical random baseline since we can't evaluate
+            # before the FC layer is initialized
+            task_0_size = self._data_manager.get_task_size(0)
+            random_baseline = 100.0 / task_0_size  # Random guess accuracy
+            self._baseline_accuracies.append(random_baseline)
+            logging.info(f"Task 0 baseline (theoretical random): {random_baseline:.2f}%")
+
         task_accuracies = {}
 
         logging.info(f"\n{'='*60}")
@@ -686,30 +695,9 @@ class BaseLearner(object):
         # Store data_manager reference for automatic metrics computation
         self._data_manager = data_manager
 
-        # Compute baseline for Task 0 (before any training)
-        # Note: _cur_task is still -1 at this point, will be incremented to 0 in subclass
-        if self._cur_task == -1 and self._enable_continual_learning_metrics:
-            # For Task 0, we need to compute baseline before training
-            # (subsequent tasks get baseline computed in previous task's after_task)
-            if len(self._baseline_accuracies) == 0:
-                # Only compute if not already computed
-                start_class, end_class = self._get_task_class_range(0)
-                test_dataset = data_manager.get_dataset(
-                    np.arange(start_class, end_class),
-                    source="test",
-                    mode="test"
-                )
-                from torch.utils.data import DataLoader
-                test_loader = DataLoader(
-                    test_dataset,
-                    batch_size=128,
-                    shuffle=False,
-                    num_workers=4
-                )
-                self._network = self._network.to(self._device)
-                baseline_acc = self._compute_accuracy(self._network, test_loader)
-                self._baseline_accuracies.append(baseline_acc)
-                logging.info(f"Task 0 baseline (random init): {baseline_acc:.2f}%")
+        # Note: Baseline computation for Task 0 is now handled in _auto_evaluate_all_tasks()
+        # during the first after_task() call, after the FC layer has been initialized.
+        # This avoids the issue of trying to evaluate before update_fc() is called.
 
         pass
 
