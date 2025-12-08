@@ -706,6 +706,7 @@ class BaseLearner(object):
                     shuffle=False,
                     num_workers=4
                 )
+                self._network = self._network.to(self._device)
                 baseline_acc = self._compute_accuracy(self._network, test_loader)
                 self._baseline_accuracies.append(baseline_acc)
                 logging.info(f"Task 0 baseline (random init): {baseline_acc:.2f}%")
