@@ -128,7 +128,7 @@ class iCXRDisesases10(iData):
         logging.info(f"Total train images: {len(self.train_data)}")
         logging.info(f"Total test images: {len(self.test_data)}")
 
-    class_order = list(range(10))  # Follow the defined order
+    class_order = list(range(7))  # Follow the defined order
 
 
 class iCIFAR10(iData):
