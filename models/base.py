@@ -69,8 +69,8 @@ class BaseLearner(object):
         if self._fixed_memory:
             # self._construct_exemplar_entropy(data_manager, per_class)
             # self._construct_exemplar_coreset(data_manager, per_class)
-            # self._construct_exemplar_kcenter(data_manager, per_class)
-            self._construct_exemplar_unified(data_manager, per_class)
+            self._construct_exemplar_kcenter(data_manager, per_class)
+            # self._construct_exemplar_unified(data_manager, per_class)
             # self._construct_exemplar_random(data_manager, per_class)
 
         else:
