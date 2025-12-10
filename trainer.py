@@ -145,7 +145,7 @@ def _train(args):
         print('Accuracy Matrix (NME):')
         print(np_acctable)
         print('Forgetting (NME):', forgetting)
-        logging.info('Forgetting (NME):', forgetting)
+        # logging.info('Forgetting (NME):', forgetting)
 
 
 def _set_device(args):
